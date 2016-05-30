@@ -87,33 +87,7 @@ subtes <- train_sen[-subtrad,]
 ```
 
 ##Training model
- The dataset has outcome that has 5 classes. And the predictors are all continuous numeric variable, which has weak power to outcome. Therefore, I use 'Boosting' and 'random forest' modeling method.
-
-###Training Boosting model
-Setting repeated cross validation
-```{r}
-set.seed=(5027)
-trcontrol <- trainControl(method="repeatedcv", number=5, repeats=1, verboseIter=FALSE)
-```
-
-  fitting model by training subset 'subtrn`
-```{r, cache=TRUE, message=FALSE, warning=FALSE}
-set.seed=(1018)
-mdl_gbm <- train(classe~., method="gbm", trControl=trcontrol, verbose=FALSE, data=subtrn[,-1])
-mdl_gbm
-```
-
-This model has accuracy 0.9067, Kappa 0.8817.
-In-sample error rate is 0.093.  
-
-validating model with test subset `subtes`
-```{r}
-pre_gbm <- predict(mdl_gbm, newdata=subtes)
-confusionMatrix(pre_gbm, subtes[,38])
-```
-
-The accuracy is 0.9127 and the kappa value is 0.8895. 
-Out-of-sample error is 0.087. which is smaller than In-sample error.
+ The dataset has outcome that has 5 classes. And the predictors are all continuous numeric variable with many outliers. Since the variables have many out liers, the boosting algorithm would be effected by these outliers. And random forest tend to have high accuracy, which would be some advantages in later quiz for this assignment. Therefore, I choose the random forest algorythm. 
 
 ###Training Random forest model
 Because the random forest uses randomly re-sampled subset of the data, it does not need cross validation.
@@ -130,6 +104,8 @@ In-sample error is 0.019
   
 Validating model with `subtes`
 ```{r}
+mdl_ft$finalModel
+
 pre_rf <- predict(mdl_rf, newdata=subtes)
 confusionMatrix(pre_rf, subtes[,38])
 ```
@@ -144,12 +120,6 @@ summary(subtes$classe)/length(subtes$classe)
 ```
 As you can see, both subset have almost same portion of each classes.
 
-##Compare both models
-```{r}
-table(pre_gbm, pre_rf, subtes$classe)
-```
-The 'random forest' model has much better accuracy.
-Because applying the 'random forest' model alone have great accuracy and Kappa, only the 'random forest' model will be applied to test set.
 
 ##Applying test set
 ```{r}
