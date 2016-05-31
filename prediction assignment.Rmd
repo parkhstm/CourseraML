@@ -63,14 +63,23 @@ Examine the distributions of the values by the `classe`
 library(ggplot2)
 library(reshape2)
 
-mt <- melt(train_sen)
+mt <- melt(train_sen[,-1])
 g <- ggplot(mt)
 g <- g + geom_jitter(aes(x=variable, y=value, color=classe), alpha=0.3, shape=46) + ylim(-800,800)
 g <- g + scale_color_manual(values=c("red", "green", "blue","yellow","gray"))
 g + guides(color = guide_legend(override.aes = list(shape = 19)))
 ```
 
-Above figure is jitter plot for the values of each variable. Each classes have different color. In this figure, there are several streaks that have specifically high proportion of each classes. But these streaks are scattered, and do not show strong pattern.
+Zoom first 12 variables from gyrosensor.
+
+```{r, fig.height=10, fig.width=15}
+mt <- melt(train_sen[,c(2:13,38)])
+g <- ggplot(mt)
+g <- g + geom_jitter(aes(x=variable, y=value, color=classe), alpha=0.3, shape=46) + ylim(-10,10)
+g <- g + scale_color_manual(values=c("red", "green", "blue","yellow","gray"))
+g + guides(color = guide_legend(override.aes = list(shape = 19)))
+```
+Above figures are jitter plots for the values of each variable. Each classes have different color. In these figures, there are several streaks that have specifically high proportion of each classes. But these streaks are scattered, and do not show strong pattern.
 
 ##Split train data
  Before fit a model, split subset of training set to validate the model.  

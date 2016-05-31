@@ -1,0 +1,138 @@
+---
+title: Prediction Assignment 
+author: "Hosub Park"
+date: "May 31, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Overview
+###About dataset
+  Use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+  Each set has 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+ Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+  
+  The dataset used in this report is from below research:  
+  *  Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. [Qualitative Activity Recognition of Weight Lifting Exercises.](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201) Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+###About prediction model
+  Random forest method were applied to randomly splitted subset of training set, which has 75% of cases of training set. Validation of the model was taken at another non-overlapping subset of training set(which has 25% of cases). 
+  Fitted model was applied to the test set.
+
+
+##Data aquisition
+The dataset used in this report was downloaded from the links in assignment instruction page in the Couresa.
+```{r, eval=FALSE}
+trainurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url=trainurl, destfile = "pml-training.csv")
+download.file(url=testurl, destfile = "pml-testing.csv")
+```
+
+##Loading and clean the data
+```{r}
+train <- read.csv(file="pml-training.csv", header=T, stringsAsFactors = FALSE, na.strings = "")
+
+train$classe <- factor(train$classe)
+train$user_name <- factor(train$user_name)
+```
+ This dataset have time-series data. Also it have summaries of the data in each windows(which rows have `new_window` is "yes"). However, It could be dangerous to use these summaries. Because there are many "#DIV/0!" and `NA`s. And condidering the size of test set file, which is 0.1% of that of training set, the test set could have only about 20 rows. It means that the model to aquire high accuracy in the test set need to be based on the values of each rows, not the summerized values of each window. So, I disgard the variables for summerized data for each windows. Remaining variables are from belt, arm, forearm, and dumbell. And each site has data from 3 motion sensors(gyros, accel, magnet). So I choose just the variables from these motion sensors to fit a model.
+```{r}
+extsen <- c(grep("^gyros",  names(train)), grep("^accel",  names(train)), grep("^magnet",  names(train)))
+train_sen <- train[,c(2,extsen,160)]
+```
+
+##Examine the data
+Examine the cleaned data
+```{r}
+names(train_sen)
+```
+
+Examine the data by boxplot.
+```{r}
+boxplot(train_sen[,-c(1,38)])
+```
+
+  The variables in the data set has many outliers. In general, the data from gyrosensor has relatively more condensed values than those from accelometer and magnetic sensor. The values from magnetic sensor have most various values.  
+
+
+Examine the distributions of the values by the `classe`
+```{r, message=F, warning=FALSE, fig.height=10, fig.width=15, cache=TRUE}
+library(ggplot2)
+library(reshape2)
+
+mt <- melt(train_sen[,-1])
+g <- ggplot(mt)
+g <- g + geom_jitter(aes(x=variable, y=value, color=classe), alpha=0.3, shape=46) + ylim(-800,800)
+g <- g + scale_color_manual(values=c("red", "green", "blue","yellow","gray"))
+g + guides(color = guide_legend(override.aes = list(shape = 19)))
+```
+
+Zoom first 12 variables from gyrosensor.
+
+```{r, message=F, warning=FALSE, fig.height=10, fig.width=15, cache=TRUE}
+mt <- melt(train_sen[,c(2:13,38)])
+g <- ggplot(mt)
+g <- g + geom_jitter(aes(x=variable, y=value, color=classe), alpha=0.3, shape=46) + ylim(-10,10)
+g <- g + scale_color_manual(values=c("red", "green", "blue","yellow","gray"))
+g + guides(color = guide_legend(override.aes = list(shape = 19)))
+```
+Above figures are jitter plots for the values of each variable. Each classes have different color. In these figures, there are several streaks that have specifically high proportion of each classes. But these streaks are scattered, and do not show strong pattern.
+
+##Split train data
+ Before fit a model, split subset of training set to validate the model.  
+ Randomly split train data into train(75%) and test(25%) subset again without overlapping. 
+```{r, message=FALSE, warning=FALSE}
+library(caret)
+```
+
+```{r}
+set.seed=(1002)
+subtrad <- createDataPartition(y=train_sen$classe, p=0.75, list=FALSE)
+subtrn <- train_sen[subtrad,]
+subtes <- train_sen[-subtrad,]
+```
+
+##Training model
+ The dataset has outcome that has 5 classes. And the predictors are all continuous numeric variable with many outliers. Since the variables have many out liers, the boosting algorithm would be effected by these outliers. And random forest tend to have high accuracy, which would be some advantages in later quiz for this assignment. Therefore, I choose the random forest algorythm. 
+
+###Training Random forest model
+Because the random forest uses randomly re-sampled subset of the data, it does not need cross validation.
+  
+Fitting model with `subtrn`
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+set.seed=(1018)
+mdl_rf <- train(classe~., method="rf", data=subtrn[,-1])
+mdl_rf
+mdl_rf$finalModel
+```
+
+This model has accuracy 0.9814, Kappa 0.9765, In-sample error is 0.019, and OOB estimate is 1.21%.
+
+###Validating model with `subtes`
+```{r, message=FALSE, warning=FALSE}
+pre_rf <- predict(mdl_rf, newdata=subtes)
+confusionMatrix(pre_rf, subtes[,38])
+```
+  
+The accuracy is 0.988, and kappa value is 0.9848.
+Out-of-sample error is 0.002, smaller than In-sample error and estimated OOB.
+
+##Check subset
+In most cases, Out-of-sample error is larger than In-sample error. In this report, however, In-sample error is larger than Out-of-sample error. It could be happend when the rare outcome is un-equally distributed between testing and training subsets. 
+```{r}
+summary(subtrn$classe)/length(subtrn$classe)
+summary(subtes$classe)/length(subtes$classe)
+```
+As you can see, both subset have almost same portion of each classes.
+
+
+##Applying test set
+```{r}
+test <- read.csv(file="pml-testing.csv", header=T, stringsAsFactors = FALSE, na.strings = "")
+
+test_result <- predict(mdl_rf, newdata=test)
+test_result
+```
